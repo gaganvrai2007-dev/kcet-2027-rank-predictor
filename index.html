@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>KCET 2027 Rank Predictor</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--text:#1b1f2a;--muted:#5d6477;--line:#dfe3ee;--accent:#4f46e5;--accent2:#e0e7ff;--good:#0f766e;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12141c;--card:#1b1e29;--text:#e8eaf2;--muted:#9aa1b5;--line:#2c3040;--accent:#8b8bff;--accent2:#27294a;--good:#5eead4;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#12141c;--card:#1b1e29;--text:#e8eaf2;--muted:#9aa1b5;--line:#2c3040;--accent:#8b8bff;--accent2:#27294a;--good:#5eead4;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;line-height:1.5}
+main{max-width:640px;margin:0 auto;padding:20px 16px 40px}
+h1{font-size:1.5rem;margin:0 0 4px}
+.sub{color:var(--muted);margin:0 0 18px;font-size:.92rem}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px}
+h2{font-size:1rem;margin:0 0 10px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+label{display:block;font-size:.82rem;color:var(--muted);margin-bottom:4px}
+input{width:100%;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--text);font-size:1rem}
+input:focus{outline:2px solid var(--accent);border-color:transparent}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+button{width:100%;padding:12px;border:0;border-radius:10px;background:var(--accent);color:#fff;font-size:1rem;font-weight:600;cursor:pointer}
+.result{display:none;text-align:center}
+.big{font-size:2.2rem;font-weight:700;color:var(--accent);margin:4px 0}
+.pill{display:inline-block;background:var(--accent2);color:var(--accent);border-radius:99px;padding:3px 12px;font-size:.85rem;margin:2px}
+.err{color:#dc2626;font-size:.88rem;margin-top:8px;display:none}
+.note{font-size:.8rem;color:var(--muted)}
+.tier{margin-top:10px;font-size:.92rem}
+.tier b{color:var(--good)}
+</style>
+</head>
+<body>
+<main>
+  <h1>🎓 KCET 2027 Rank Predictor</h1>
+  <p class="sub">Estimate your engineering rank from KCET marks and PUC (12th) marks.</p>
+
+  <div class="card">
+    <h2>KCET marks (out of 60 each)</h2>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr)">
+      <div><label for="kp">Physics</label><input id="kp" type="number" min="0" max="60" inputmode="decimal"></div>
+      <div><label for="kc">Chemistry</label><input id="kc" type="number" min="0" max="60" inputmode="decimal"></div>
+      <div><label for="km">Maths</label><input id="km" type="number" min="0" max="60" inputmode="decimal"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>PUC / 12th marks (out of 100 each)</h2>
+    <div class="grid" style="grid-template-columns:repeat(3,1fr)">
+      <div><label for="pp">Physics</label><input id="pp" type="number" min="0" max="100" inputmode="decimal"></div>
+      <div><label for="pc">Chemistry</label><input id="pc" type="number" min="0" max="100" inputmode="decimal"></div>
+      <div><label for="pm">Maths</label><input id="pm" type="number" min="0" max="100" inputmode="decimal"></div>
+    </div>
+    <div class="err" id="err">Please fill all six fields with valid marks.</div>
+  </div>
+
+  <button id="go">Predict my rank</button>
+
+  <div class="card result" id="res" style="margin-top:14px">
+    <div class="note">Estimated engineering rank</div>
+    <div class="big" id="rank"></div>
+    <div><span class="pill" id="range"></span></div>
+    <div style="margin-top:10px">
+      <span class="pill" id="kpct"></span>
+      <span class="pill" id="ppct"></span>
+      <span class="pill" id="comp"></span>
+    </div>
+    <div class="tier" id="tier"></div>
+  </div>
+
+  <p class="note">How it works: the final KCET score gives 50% weight to your KCET PCM marks (out of 180) and 50% to your PUC PCM marks (out of 300). That composite is mapped to a rank using an approximate curve built for a typical year (about 2–2.5 lakh engineering rank holders). Real ranks shift every year with paper difficulty, number of candidates and tie-breaks, so treat this as a rough guide, not an official result. Check KEA’s official results for your actual rank.</p>
+</main>
+<script>
+(function(){
+  // [composite %, approx rank] — rough, typical-year curve
+  var T=[[100,1],[97,60],[95,250],[92,1000],[90,2200],[85,7000],[80,14000],[75,24000],[70,37000],[65,54000],[60,76000],[55,100000],[50,128000],[45,158000],[40,188000],[35,215000],[30,238000],[20,262000],[0,285000]];
+  function rankFor(c){
+    for(var i=0;i<T.length-1;i++){
+      var a=T[i],b=T[i+1];
+      if(c<=a[0]&&c>=b[0]){
+        var t=(a[0]-c)/(a[0]-b[0]);
+        return Math.exp(Math.log(a[1])+t*(Math.log(b[1])-Math.log(a[1])));
+      }
+    }
+    return 285000;
+  }
+  function fmt(n){return Math.round(n).toLocaleString("en-IN")}
+  function val(id,max){var v=parseFloat(document.getElementById(id).value);return(isNaN(v)||v<0||v>max)?null:v}
+  document.getElementById("go").addEventListener("click",function(){
+    var k=[val("kp",60),val("kc",60),val("km",60)],p=[val("pp",100),val("pc",100),val("pm",100)];
+    var err=document.getElementById("err"),res=document.getElementById("res");
+    if(k.concat(p).some(function(x){return x===null})){err.style.display="block";res.style.display="none";return}
+    err.style.display="none";
+    var ks=k[0]+k[1]+k[2],ps=p[0]+p[1]+p[2];
+    var kp=ks/180*100,pp=ps/300*100,comp=(kp+pp)/2;
+    var r=rankFor(comp),lo=Math.max(1,r*0.75),hi=r*1.3;
+    document.getElementById("rank").textContent="~ "+fmt(r);
+    document.getElementById("range").textContent="Likely range: "+fmt(lo)+" – "+fmt(hi);
+    document.getElementById("kpct").textContent="KCET: "+ks+"/180 ("+kp.toFixed(1)+"%)";
+    document.getElementById("ppct").textContent="PUC: "+ps+"/300 ("+pp.toFixed(1)+"%)";
+    document.getElementById("comp").textContent="Composite: "+comp.toFixed(2)+"%";
+    var t=r<1500?"Top-tier: strong chance at the most sought-after colleges and branches (CSE/ISE/ECE) in government seats.":
+      r<8000?"Very good: top private and good government colleges are realistic, including popular branches.":
+      r<25000?"Good: well-regarded colleges are likely; core and allied branches are comfortable, CS is competitive.":
+      r<60000?"Moderate: many good options, but choose college and branch carefully and keep a wide option list.":
+      "Wider options needed: keep a long choice list, and consider multiple counselling rounds and other entrance exams.";
+    document.getElementById("tier").innerHTML="<b>What it may mean:</b> "+t;
+    res.style.display="block";
+    res.scrollIntoView({behavior:"smooth",block:"nearest"});
+  });
+})();
+</script>
+</body>
+</html>
